@@ -117,7 +117,7 @@ class BasePanel(ScreenPanel):
         self.labels['spoolman_weight'] = Gtk.Label()
         self.control['spoolman_box'] = Gtk.Box()
         self.control['spoolman_box'].set_no_show_all(True)
-        self.control['spoolman_box'].pack_start(self.labels['spoolman_icon'], False, False, 5)
+        self.control['spoolman_box'].pack_start(self.labels['spoolman_icon'], False, False, 10)
         self.control['spoolman_box'].pack_start(self.labels['spoolman_weight'], False, False, 0)
         self.labels['spoolman_icon'].show()
         self.labels['spoolman_weight'].show()
