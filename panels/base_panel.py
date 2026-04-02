@@ -7,7 +7,7 @@ import re
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk, Pango, GdkPixbuf
+from gi.repository import Gio, GLib, Gtk, Pango, GdkPixbuf
 from jinja2 import Environment
 from datetime import datetime
 from math import log
@@ -115,10 +115,10 @@ class BasePanel(ScreenPanel):
 
         self.labels['spoolman_icon'] = Gtk.Image()
         self.labels['spoolman_weight'] = Gtk.Label()
-        self.control['spoolman_box'] = Gtk.Box(halign=Gtk.Align.END, spacing=1)
+        self.control['spoolman_box'] = Gtk.Box()
         self.control['spoolman_box'].set_no_show_all(True)
-        self.control['spoolman_box'].add(self.labels['spoolman_icon'])
-        self.control['spoolman_box'].add(self.labels['spoolman_weight'])
+        self.control['spoolman_box'].pack_start(self.labels['spoolman_icon'], False, False, 3)
+        self.control['spoolman_box'].pack_start(self.labels['spoolman_weight'], False, False, 0)
         self.labels['spoolman_icon'].show()
         self.labels['spoolman_weight'].show()
         self.load_spoolman_icons()
@@ -190,11 +190,16 @@ class BasePanel(ScreenPanel):
             svg = svg.replace("var(--filament-color)", f"#{color}")
             if full_icon:
                 svg = re.sub(r'fill:\s*(?!none)[^;"\']+', f'fill:#{color}', svg)
-            loader = GdkPixbuf.PixbufLoader()
-            loader.set_size(self.spoolman_icon_size, self.spoolman_icon_size)
-            loader.write(svg.encode())
-            loader.close()
-            return loader.get_pixbuf()
+            stream = Gio.MemoryInputStream.new_from_data(svg.encode(), None)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(
+                stream,
+                self.spoolman_icon_size,
+                self.spoolman_icon_size,
+                True,
+                None,
+            )
+            stream.close_async(2)
+            return pixbuf
         except Exception as e:
             logging.error(f"Couldn't load spoolman icon: {e}")
             return self._gtk.PixbufFromIcon("spool", self.spoolman_icon_size, self.spoolman_icon_size)
