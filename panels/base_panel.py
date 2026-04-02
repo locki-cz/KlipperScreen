@@ -344,7 +344,7 @@ class BasePanel(ScreenPanel):
                 or self._printer.active_spool["remaining_weight"] is None
         ):
             self.update_spoolman_alert_visuals(False)
-            self.labels['spoolman_weight'].set_label(" ?")
+            self.labels['spoolman_weight'].set_label("?")
             self.control['spoolman_box'].show()
             return
         remaining_weight = self._printer.active_spool["remaining_weight"]
