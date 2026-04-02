@@ -178,12 +178,31 @@ class BasePanel(ScreenPanel):
         self.update_spoolman_alert_visuals(False)
 
     def load_spoolman_icons(self):
-        self.spoolman_icon_alert_pixbuf = self._gtk.PixbufFromIcon(
-            "extruder", self.spoolman_icon_size, self.spoolman_icon_size
-        )
+        self.spoolman_icon_alert_pixbuf = self.get_spoolman_icon_pixbuf("981E1F", full_icon=True)
 
     def get_spoolman_icon_pixbuf(self, color, full_icon=False):
-        return self._gtk.PixbufFromIcon("extruder", self.spoolman_icon_size, self.spoolman_icon_size)
+        klipperscreendir = pathlib.Path(__file__).parent.resolve().parent
+        icon_path = os.path.join(klipperscreendir, "styles", self._screen.theme, "images", "spool.svg")
+        if not os.path.isfile(icon_path):
+            icon_path = os.path.join(klipperscreendir, "styles", "spool.svg")
+        try:
+            svg = pathlib.Path(icon_path).read_text(encoding="utf-8")
+            svg = svg.replace("var(--filament-color)", f"#{color}")
+            if full_icon:
+                svg = re.sub(r'fill:\s*(?!none)[^;"\']+', f'fill:#{color}', svg)
+            stream = Gio.MemoryInputStream.new_from_data(svg.encode(), None)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(
+                stream,
+                self.spoolman_icon_size,
+                self.spoolman_icon_size,
+                True,
+                None,
+            )
+            stream.close_async(2)
+            return pixbuf
+        except Exception as e:
+            logging.error(f"Couldn't load spoolman icon: {e}")
+            return self._gtk.PixbufFromIcon("spool", self.spoolman_icon_size, self.spoolman_icon_size)
 
     def get_active_spoolman_color(self):
         if (
