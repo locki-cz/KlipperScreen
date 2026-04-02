@@ -180,6 +180,20 @@ class BasePanel(ScreenPanel):
     def load_spoolman_icons(self):
         self.spoolman_icon_alert_pixbuf = self.get_spoolman_icon_pixbuf("981E1F", full_icon=True)
 
+    def get_spoolman_icon_size(self, svg):
+        match = re.search(r'viewBox="\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)\s*"', svg)
+        if not match:
+            match = re.search(r'width="([\d.]+)".*height="([\d.]+)"', svg, re.DOTALL)
+        if not match:
+            return self.spoolman_icon_size, self.spoolman_icon_size
+        width = float(match.group(1))
+        height = float(match.group(2))
+        if width <= 0 or height <= 0:
+            return self.spoolman_icon_size, self.spoolman_icon_size
+        target_height = self.spoolman_icon_size
+        target_width = max(1, round(target_height * width / height))
+        return target_width, target_height
+
     def get_spoolman_icon_pixbuf(self, color, full_icon=False):
         klipperscreendir = pathlib.Path(__file__).parent.resolve().parent
         icon_path = os.path.join(klipperscreendir, "styles", self._screen.theme, "images", "spool.svg")
@@ -190,11 +204,12 @@ class BasePanel(ScreenPanel):
             svg = svg.replace("var(--filament-color)", f"#{color}")
             if full_icon:
                 svg = re.sub(r'fill:\s*(?!none)[^;"\']+', f'fill:#{color}', svg)
+            target_width, target_height = self.get_spoolman_icon_size(svg)
             stream = Gio.MemoryInputStream.new_from_data(svg.encode(), None)
             pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(
                 stream,
-                self.spoolman_icon_size,
-                self.spoolman_icon_size,
+                target_width,
+                target_height,
                 True,
                 None,
             )
