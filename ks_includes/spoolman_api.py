@@ -58,6 +58,23 @@ class SpoolmanAPI:
         """Fetches full details for a specific spool."""
         return self._make_request(method="GET", path=f"/v1/spool/{spool_id}")
 
+    def update_spool(self, spool_id: int, body: dict) -> dict | None:
+        """Updates a spool and returns the updated spool data."""
+        try:
+            result = self.api.post_request("server/spoolman/proxy", json={
+                "use_v2_response": True,
+                "request_method": "PATCH",
+                "path": f"/v1/spool/{spool_id}",
+                "body": body,
+            })
+            if not result or result.get("error"):
+                logging.warning(f"Spoolman update error: {result}")
+                return None
+            return result.get("response")
+        except Exception as e:
+            logging.error(f"Error updating spool: {e}")
+            return None
+
     def load_all_spools(self, allow_archived: bool = False) -> list | None:
         """Fetches the full list of spools."""
         path = f"/v1/spool?allow_archived={str(allow_archived).lower()}"

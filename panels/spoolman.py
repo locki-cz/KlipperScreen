@@ -1,6 +1,8 @@
 import logging
+import math
 import os.path
 import pathlib
+import re
 
 import gi
 
@@ -106,10 +108,15 @@ class SpoolmanSpool(GObject.GObject):
 
     @property
     def name(self):
-        result = self.filament.name
-        if self.filament.vendor:
-            result = " ".join([self.filament.vendor.name, "-", result])
-        return result
+        parts = []
+        vendor_name = getattr(self.filament.vendor, "name", None) if self.filament.vendor else None
+        if vendor_name:
+            parts.append(vendor_name)
+        if getattr(self.filament, "name", None):
+            parts.append(self.filament.name)
+        if getattr(self.filament, "material", None):
+            parts.append(self.filament.material)
+        return " - ".join(parts) if parts else self.filament.name
 
     @property
     def icon(self):
@@ -124,13 +131,23 @@ class SpoolmanSpool(GObject.GObject):
                 SpoolmanSpool._spool_icon = pathlib.Path(_spool_icon_path).read_text()
 
             loader = GdkPixbuf.PixbufLoader()
-            color = self.filament.color_hex if hasattr(self.filament, 'color_hex') else '000000'
+            color = self._get_filament_color()
             loader.write(
                 SpoolmanSpool._spool_icon.replace('var(--filament-color)', f'#{color}').encode()
             )
             loader.close()
             self._icon = loader.get_pixbuf()
         return self._icon
+
+    def _get_filament_color(self):
+        default_color = "000000"
+        color = getattr(self.filament, "color_hex", None)
+        if not isinstance(color, str):
+            return default_color
+        color = color.strip().lstrip("#")
+        if not color or not re.fullmatch(r"[0-9a-fA-F]{3}|[0-9a-fA-F]{6}", color):
+            return default_color
+        return color
 
 
 class Panel(ScreenPanel):
@@ -251,6 +268,7 @@ class Panel(ScreenPanel):
 
         self.load_spools()
         self._treeview = Gtk.TreeView(model=sortable, headers_visible=False, show_expanders=False)
+        self._treeview.set_activate_on_single_click(True)
 
         text_renderer = Gtk.CellRendererText(wrap_width=self._gtk.content_width / 4)
         pixbuf_renderer = Gtk.CellRendererPixbuf(xpad=5, ypad=5)
@@ -285,12 +303,17 @@ class Panel(ScreenPanel):
         column_last_used.set_visible(False)
         column_last_used.set_sort_column_id(1)
 
-        column_material = Gtk.TreeViewColumn(cell_renderer=text_renderer)
-        column_material.set_cell_data_func(
-            text_renderer,
+        edit_renderer = Gtk.CellRendererPixbuf(xpad=8, ypad=8)
+        column_edit = Gtk.TreeViewColumn(cell_renderer=edit_renderer)
+        column_edit.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
+        edit_icon_size = max(16, math.ceil(self._gtk.img_scale * self.bts * 1.8))
+        column_edit.set_fixed_width(max(edit_icon_size + 20, round(self._gtk.font_size * 6.5)))
+        edit_icon = self._gtk.PixbufFromIcon("settings", edit_icon_size, edit_icon_size)
+        column_edit.set_cell_data_func(
+            edit_renderer,
             lambda column, cell, model, it, data:
             self._set_cell_background(cell, model.get_value(it, 0)) and
-            cell.set_property('text', model.get_value(it, 0).filament.material)
+            cell.set_property('pixbuf', edit_icon)
         )
 
         checkbox_renderer.connect("toggled", self._set_active_spool)
@@ -306,14 +329,16 @@ class Panel(ScreenPanel):
         self._treeview.append_column(column_icon)
         self._treeview.append_column(column_spool)
         self._treeview.append_column(column_last_used)
-        self._treeview.append_column(column_material)
+        self._treeview.append_column(column_edit)
         self._treeview.append_column(column_toggle_active_spool)
+        self._treeview.connect("row-activated", self.open_spool_detail)
 
         self.current_sort_widget = sort_btn_id
         sort_btn_used.clicked()
 
         self.scroll.add(self._treeview)
         self.content.add(self.main)
+        self._column_edit = column_edit
 
     def _filter_spools(self, model, i, data):
         spool: SpoolmanSpool = model[i][0]
@@ -352,6 +377,14 @@ class Panel(ScreenPanel):
             self.clear_active_spool()
         else:
             self.set_active_spool(spool)
+
+    def open_spool_detail(self, treeview, path, column):
+        if column != self._column_edit:
+            return
+        model = treeview.get_model()
+        it = model.get_iter(path)
+        spool = model.get_value(it, 0)
+        self._screen.show_panel("spool", title=spool.name, extra=spool)
 
     def change_sort(self, widget, sort_type):
         self.current_sort_widget.set_image(None)
