@@ -31,6 +31,7 @@ class BasePanel(ScreenPanel):
         self.spoolman_update = None
         self.titlebar_items = []
         self.titlebar_name_type = None
+        self.spool_shortcut = None
         self.spoolman_low_limit = 20
         self.spoolman_current_color = None
         self.current_extruder = None
@@ -112,9 +113,14 @@ class BasePanel(ScreenPanel):
         self.labels['spoolman_icon'] = Gtk.Image()
         self.labels['spoolman_icon'].set_from_pixbuf(self.get_spoolman_icon_pixbuf())
         self.labels['spoolman_weight'] = Gtk.Label(label="?")
-        self.control['spoolman_box'] = Gtk.Box()
-        self.control['spoolman_box'].pack_start(self.labels['spoolman_icon'], False, False, 7)
-        self.control['spoolman_box'].pack_start(self.labels['spoolman_weight'], False, False, 0)
+        self.control['spoolman_content'] = Gtk.Box()
+        self.control['spoolman_content'].pack_start(self.labels['spoolman_icon'], False, False, 7)
+        self.control['spoolman_content'].pack_start(self.labels['spoolman_weight'], False, False, 0)
+        self.control['spoolman_box'] = Gtk.Button()
+        self.control['spoolman_box'].set_relief(Gtk.ReliefStyle.NONE)
+        self.control['spoolman_box'].set_can_focus(False)
+        self.control['spoolman_box'].connect("clicked", self.open_spool_shortcut)
+        self.control['spoolman_box'].add(self.control['spoolman_content'])
 
         self.titlebar = Gtk.Box(spacing=5, valign=Gtk.Align.CENTER)
         self.titlebar.get_style_context().add_class("title_bar")
@@ -171,7 +177,7 @@ class BasePanel(ScreenPanel):
 
     def get_spoolman_icon_pixbuf(self, color=None):
         if not color:
-            self.get_active_spoolman_color()
+            color = self.get_active_spoolman_color()
         klipperscreendir = pathlib.Path(__file__).parent.resolve().parent
         icon_path = os.path.join(klipperscreendir, "styles", self._screen.theme, "images", "spool.svg")
         icon_size = self._gtk.img_scale * self.bts * .9
@@ -275,6 +281,29 @@ class BasePanel(ScreenPanel):
         self.control['temp_box'].add(self.control['spoolman_box'])
         self.set_spoolman_refresh()
         self.fetch_spoolman()
+
+    def open_spool_shortcut(self, widget=None):
+        if self.spool_shortcut is None:
+            return
+        if self.spool_shortcut != "spool":
+            self._screen.show_panel("spoolman")
+            return
+        active_spool_id = None if self._printer is None else self._printer.active_spool_id
+        if not active_spool_id:
+            active_spool_id = self._screen.spoolman_api.get_active_spool_id()
+            if not active_spool_id:
+                self._screen.show_panel("spoolman")
+                return
+        spool_data = self._screen.spoolman_api.get_spool_details(active_spool_id)
+        if spool_data is None:
+            self._screen.show_panel("spoolman")
+            return
+        from panels.spoolman import SpoolmanSpool
+        if SpoolmanSpool.theme_path != self._screen.theme:
+            SpoolmanSpool.theme_path = self._screen.theme
+            SpoolmanSpool._spool_icon = None
+        spool = SpoolmanSpool(**spool_data)
+        self._screen.show_panel("spool", title=spool.name, extra=spool)
 
     def get_icon(self, device, img_size):
         if device.startswith("extruder"):
@@ -543,9 +572,14 @@ class BasePanel(ScreenPanel):
                 logging.info(f"Titlebar name type: {self.titlebar_name_type} items: {self.titlebar_items}")
             else:
                 self.titlebar_items = []
+            raw_spool_shortcut = self.ks_printer_cfg.get("spool_shortcut", fallback=None)
+            if isinstance(raw_spool_shortcut, str):
+                raw_spool_shortcut = raw_spool_shortcut.strip().lower()
+            self.spool_shortcut = raw_spool_shortcut if raw_spool_shortcut in {"spoolman", "spool"} else None
             self.spoolman_low_limit = self.ks_printer_cfg.getfloat("spool_low_limit", fallback=20)
         else:
             self.titlebar_items = []
+            self.spool_shortcut = None
             self.spoolman_low_limit = 20
 
     def show_update_dialog(self):
