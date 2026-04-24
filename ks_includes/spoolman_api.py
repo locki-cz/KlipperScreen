@@ -70,7 +70,16 @@ class SpoolmanAPI:
             if not result or result.get("error"):
                 logging.warning(f"Spoolman update error: {result}")
                 return None
-            return result.get("response")
+            if "response" in result:
+                return result.get("response") or {}
+            if "result" in result:
+                payload = result.get("result")
+                if isinstance(payload, dict):
+                    if "response" in payload:
+                        return payload.get("response") or {}
+                    return payload
+                return {}
+            return {}
         except Exception as e:
             logging.error(f"Error updating spool: {e}")
             return None

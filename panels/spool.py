@@ -286,14 +286,22 @@ class Panel(ScreenPanel):
         if result is None:
             self._screen.show_popup_message(_("Error updating filament weight"))
             return
-        self.spool.remaining_weight = result.get("remaining_weight", value)
-        if "used_weight" in result:
-            self.spool.used_weight = result["used_weight"]
-        if "remaining_length" in result:
-            self.spool.remaining_length = result["remaining_length"]
+        self._screen.update_spool_data(self.spool.id)
         if self._screen.printer is not None and self._screen.printer.active_spool_id == self.spool.id:
-            self._screen.update_spool_data(self.spool.id)
             self._screen.base_panel.update_spoolman_weight_label()
+            active_spool = self._screen.printer.active_spool
+            if active_spool:
+                self.spool.remaining_weight = active_spool.get("remaining_weight", value)
+                if "used_weight" in active_spool:
+                    self.spool.used_weight = active_spool["used_weight"]
+                if "remaining_length" in active_spool:
+                    self.spool.remaining_length = active_spool["remaining_length"]
+        else:
+            self.spool.remaining_weight = result.get("remaining_weight", value)
+            if "used_weight" in result:
+                self.spool.used_weight = result["used_weight"]
+            if "remaining_length" in result:
+                self.spool.remaining_length = result["remaining_length"]
         self.set_extra(extra=self.spool)
         self._screen.show_popup_message(_("Filament weight updated"), 1)
 
